@@ -1,29 +1,34 @@
 
 package com.example.weatherapp.ui.screen
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.weatherapp.data.model.*
+import com.example.weatherapp.data.model.City
+import com.example.weatherapp.data.model.CurrentWeather
+import com.example.weatherapp.ui.components.*
 import com.example.weatherapp.ui.viewmodel.*
 import com.example.weatherapp.util.getWeatherCondition
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
@@ -39,106 +44,161 @@ fun WeatherScreen(
     val selectedCity by weatherViewModel.selectedCity
         .collectAsStateWithLifecycle()
 
-    var searchQuery by remember { mutableStateOf("") }
+    val searchQuery by weatherViewModel.searchQuery
+        .collectAsStateWithLifecycle()
+
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     var showSearch by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = "WeatherApp",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
+    val gradient = Brush.verticalGradient(
+        colors = listOf(
+            Color(0xFF234B83),
+            Color(0xFF142D53),
+            Color(0xFF09162D)
         )
+    )
 
-        Spacer(Modifier.height(20.dp))
+    Scaffold(
+        containerColor = Color.Transparent
+    ) { innerPadding ->
 
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { query ->
-                searchQuery = query
-                showSearch = true
-                weatherViewModel.searchCities(query)
-            },
-            label = { Text("Buscar ciudad") },
-            placeholder = { Text("Ej: Santiago") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(gradient)
+                .padding(innerPadding)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(Modifier.height(24.dp))
 
-        Spacer(Modifier.height(12.dp))
-
-        if (showSearch) {
-            CitySearchResults(
-                state = searchState,
-                onCitySelected = { city ->
-                    weatherViewModel.selectCity(city)
-                    searchQuery = ""
-                    showSearch = false
-                }
-            )
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        when (val state = uiState) {
-            WeatherUiState.Loading -> {
-                CircularProgressIndicator()
-                Spacer(Modifier.height(12.dp))
-                Text("Consultando el clima...")
-            }
-
-            is WeatherUiState.Error -> {
                 Text(
-                    text = state.message,
-                    color = MaterialTheme.colorScheme.error,
-                    textAlign = TextAlign.Center
+                    text = "WeatherApp",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(24.dp))
 
-                Button(
-                    onClick = weatherViewModel::loadWeather
-                ) {
-                    Text("Reintentar")
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { query ->
+                        showSearch = true
+                        weatherViewModel.onSearchQueryChange(query)
+                    },
+                    label = { Text("Buscar ciudad") },
+                    placeholder = { Text("Ej: Santiago, Tokio...") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(18.dp),
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Search
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onSearch = {
+                            keyboardController?.hide()
+                        }
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = Color(0xFFB9D9FF),
+                        unfocusedBorderColor =
+                            Color.White.copy(alpha = 0.4f),
+                        focusedLabelColor = Color.White,
+                        unfocusedLabelColor =
+                            Color.White.copy(alpha = 0.8f),
+                        cursorColor = Color.White
+                    )
+                )
+
+                if (showSearch && searchQuery.isNotBlank()) {
+                    Spacer(Modifier.height(12.dp))
+
+                    CitySearchResults(
+                        state = searchState,
+                        onCitySelected = { city ->
+                            weatherViewModel.selectCity(city)
+                            showSearch = false
+                            keyboardController?.hide()
+                        }
+                    )
                 }
-            }
 
-            is WeatherUiState.Success -> {
-                val response = state.weather
+                Spacer(Modifier.height(32.dp))
 
-                CurrentWeatherSection(
-                    city = "${selectedCity.name}, ${selectedCity.country}",
-                    weather = response.current
-                )
+                when (val state = uiState) {
+                    WeatherUiState.Loading -> {
+                        Spacer(Modifier.height(60.dp))
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(16.dp))
+                        Text("Consultando el clima...")
+                    }
 
-                Spacer(Modifier.height(24.dp))
+                    is WeatherUiState.Error -> {
+                        Spacer(Modifier.height(40.dp))
 
-                HorizontalDivider()
+                        Text(
+                            text = state.message,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center
+                        )
 
-                Spacer(Modifier.height(24.dp))
+                        Spacer(Modifier.height(16.dp))
 
-                HourlyForecastSection(
-                    hourly = response.hourly,
-                    currentTime = response.current.time
-                )
+                        Button(
+                            onClick = weatherViewModel::loadWeather
+                        ) {
+                            Text("Reintentar")
+                        }
+                    }
 
-                Spacer(Modifier.height(24.dp))
+                    is WeatherUiState.Success -> {
+                        val response = state.weather
 
-                DailyForecastSection(
-                    daily = response.daily
-                )
+                        WeatherHero(
+                            city = "${selectedCity.name}, ${selectedCity.country}",
+                            weather = response.current
+                        )
 
-                Spacer(Modifier.height(24.dp))
+                        Spacer(Modifier.height(32.dp))
 
-                Button(
-                    onClick = weatherViewModel::loadWeather
-                ) {
-                    Text("Actualizar clima")
+                        WeatherDetailsGrid(
+                            weather = response.current
+                        )
+
+                        Spacer(Modifier.height(32.dp))
+
+                        HourlyForecastCard(
+                            hourly = response.hourly,
+                            currentTime = response.current.time
+                        )
+
+                        Spacer(Modifier.height(32.dp))
+
+                        DailyForecastCard(
+                            daily = response.daily
+                        )
+
+                        Spacer(Modifier.height(28.dp))
+
+                        OutlinedButton(
+                            onClick = weatherViewModel::loadWeather,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Actualizar clima")
+                        }
+
+                        Spacer(Modifier.height(32.dp))
+                    }
                 }
             }
         }
@@ -146,7 +206,7 @@ fun WeatherScreen(
 }
 
 @Composable
-private fun CurrentWeatherSection(
+private fun WeatherHero(
     city: String,
     weather: CurrentWeather
 ) {
@@ -156,15 +216,17 @@ private fun CurrentWeatherSection(
     )
 
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
             text = city,
             style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center
         )
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(8.dp))
 
         Text(
             text = condition.icon,
@@ -172,182 +234,15 @@ private fun CurrentWeatherSection(
         )
 
         Text(
-            text = "${weather.temperature.format(1)} °C",
+            text = "${weather.temperature.format(0)}°",
             style = MaterialTheme.typography.displayLarge,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Light
         )
 
         Text(
             text = condition.description,
-            style = MaterialTheme.typography.titleMedium
+            style = MaterialTheme.typography.titleLarge
         )
-
-        Spacer(Modifier.height(24.dp))
-
-        WeatherDetail(
-            "Sensación térmica",
-            "${weather.apparentTemperature.format(1)} °C"
-        )
-
-        WeatherDetail(
-            "Humedad",
-            "${weather.humidity}%"
-        )
-
-        WeatherDetail(
-            "Viento",
-            "${weather.windSpeed.format(1)} km/h"
-        )
-    }
-}
-
-@Composable
-private fun HourlyForecastSection(
-    hourly: HourlyWeather,
-    currentTime: String
-) {
-    val currentHour = LocalDateTime
-        .parse(currentTime)
-        .withMinute(0)
-        .withSecond(0)
-        .withNano(0)
-
-    val hours = hourly.time.indices.filter { index ->
-        val dateTime = LocalDateTime.parse(hourly.time[index])
-
-        !dateTime.isBefore(currentHour) &&
-                dateTime.isBefore(currentHour.plusHours(24)) &&
-                index < hourly.temperatures.size &&
-                index < hourly.weatherCodes.size
-    }
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "Próximas 24 horas",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(Modifier.height(16.dp))
-
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(hours) { index ->
-                val dateTime =
-                    LocalDateTime.parse(hourly.time[index])
-
-                val condition = getWeatherCondition(
-                    hourly.weatherCodes[index]
-                )
-
-                ElevatedCard(
-                    modifier = Modifier.width(100.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = dateTime.format(
-                                DateTimeFormatter.ofPattern("HH:mm")
-                            ),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-
-                        Spacer(Modifier.height(10.dp))
-
-                        Text(
-                            text = condition.icon,
-                            style = MaterialTheme.typography.headlineMedium
-                        )
-
-                        Spacer(Modifier.height(10.dp))
-
-                        Text(
-                            text = "${hourly.temperatures[index].format(0)}°",
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DailyForecastSection(
-    daily: DailyWeather
-) {
-    val count = minOf(
-        daily.time.size,
-        daily.maxTemperatures.size,
-        daily.minTemperatures.size,
-        daily.weatherCodes.size
-    )
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "Pronóstico de 7 días",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(Modifier.height(16.dp))
-
-        repeat(count) { index ->
-            val date = LocalDate.parse(daily.time[index])
-
-            val dayName = date.format(
-                DateTimeFormatter.ofPattern(
-                    "EEEE",
-                    Locale("es", "CL")
-                )
-            ).replaceFirstChar { it.uppercase() }
-
-            val condition = getWeatherCondition(
-                daily.weatherCodes[index]
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = if (index == 0) "Hoy" else dayName,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-
-                Text(
-                    text = condition.icon,
-                    style = MaterialTheme.typography.titleLarge
-                )
-
-                Spacer(Modifier.width(16.dp))
-
-                Text(
-                    text = "${daily.minTemperatures[index].format(0)}°",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(Modifier.width(12.dp))
-
-                Text(
-                    text = "${daily.maxTemperatures[index].format(0)}°",
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            if (index < count - 1) {
-                HorizontalDivider()
-            }
-        }
     }
 }
 
@@ -356,81 +251,74 @@ private fun CitySearchResults(
     state: CitySearchState,
     onCitySelected: (City) -> Unit
 ) {
-    when (state) {
-        CitySearchState.Idle -> Unit
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF243E63)
+        )
+    ) {
+        when (state) {
+            CitySearchState.Idle -> Unit
 
-        CitySearchState.Loading -> {
-            LinearProgressIndicator(
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+            CitySearchState.Loading -> {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
-        is CitySearchState.Error -> {
-            Text(
-                text = state.message,
-                color = MaterialTheme.colorScheme.error
-            )
-        }
+            is CitySearchState.Error -> {
+                Text(
+                    text = state.message,
+                    modifier = Modifier.padding(16.dp),
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
 
-        is CitySearchState.Success -> {
-            if (state.cities.isEmpty()) {
-                Text("No se encontraron ciudades.")
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 240.dp)
-                ) {
-                    items(
-                        items = state.cities,
-                        key = { it.id }
-                    ) { city ->
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    onCitySelected(city)
-                                }
-                                .padding(12.dp)
-                        ) {
-                            Text(
-                                text = city.name,
-                                fontWeight = FontWeight.Bold
-                            )
+            is CitySearchState.Success -> {
+                if (state.cities.isEmpty()) {
+                    Text(
+                        text = "No se encontraron ciudades.",
+                        modifier = Modifier.padding(16.dp)
+                    )
+                } else {
+                    // Usamos Column porque la lista está limitada
+                    // a 10 resultados y vive dentro de un scroll.
+                    Column {
+                        state.cities.forEach { city ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        onCitySelected(city)
+                                    }
+                                    .padding(14.dp)
+                            ) {
+                                Text(
+                                    text = city.name,
+                                    fontWeight = FontWeight.Bold
+                                )
 
-                            Text(
-                                text = listOfNotNull(
-                                    city.region,
-                                    city.country
-                                ).joinToString(", "),
-                                style = MaterialTheme.typography.bodySmall
+                                Text(
+                                    text = listOfNotNull(
+                                        city.region,
+                                        city.country
+                                    ).joinToString(", "),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(
+                                        alpha = 0.7f
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(
+                                color = Color.White.copy(alpha = 0.1f)
                             )
                         }
-
-                        HorizontalDivider()
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun WeatherDetail(
-    label: String,
-    value: String
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(label)
-        Text(
-            text = value,
-            fontWeight = FontWeight.SemiBold
-        )
     }
 }
 
