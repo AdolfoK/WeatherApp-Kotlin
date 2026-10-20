@@ -1,40 +1,51 @@
 
 package com.example.weatherapp.ui.screen
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.weatherapp.data.model.City
 import com.example.weatherapp.data.model.CurrentWeather
-import com.example.weatherapp.ui.components.*
-import com.example.weatherapp.ui.viewmodel.*
+import com.example.weatherapp.ui.components.DailyForecastCard
+import com.example.weatherapp.ui.components.HourlyForecastCard
+import com.example.weatherapp.ui.components.WeatherDetailsGrid
+import com.example.weatherapp.ui.viewmodel.CitySearchState
+import com.example.weatherapp.ui.viewmodel.WeatherUiState
+import com.example.weatherapp.ui.viewmodel.WeatherViewModel
+import com.example.weatherapp.util.formatTemperature
 import com.example.weatherapp.util.getWeatherCondition
-import java.util.Locale
 
 @Composable
 fun WeatherScreen(
     weatherViewModel: WeatherViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     val uiState by weatherViewModel.uiState
         .collectAsStateWithLifecycle()
 
@@ -47,9 +58,61 @@ fun WeatherScreen(
     val searchQuery by weatherViewModel.searchQuery
         .collectAsStateWithLifecycle()
 
-    val keyboardController = LocalSoftwareKeyboardController.current
+    val useFahrenheit by weatherViewModel.useFahrenheit
+        .collectAsStateWithLifecycle()
 
-    var showSearch by remember { mutableStateOf(false) }
+    val isLocating by weatherViewModel.isLocating
+        .collectAsStateWithLifecycle()
+
+    val locationError by weatherViewModel.locationError
+        .collectAsStateWithLifecycle()
+
+    var showSearch by remember {
+        mutableStateOf(false)
+    }
+
+    // Solicita permisos de ubicación a Android.
+    val locationPermissionLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestMultiplePermissions()
+        ) { permissions ->
+
+            val fineGranted =
+                permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+
+            val coarseGranted =
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+
+            if (fineGranted || coarseGranted) {
+                weatherViewModel.useCurrentLocation()
+            } else {
+                weatherViewModel.onLocationPermissionDenied()
+            }
+        }
+
+    // Comprueba permisos antes de acceder al GPS.
+    fun requestCurrentLocation() {
+        val fineGranted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val coarseGranted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (fineGranted || coarseGranted) {
+            weatherViewModel.useCurrentLocation()
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
 
     val gradient = Brush.verticalGradient(
         colors = listOf(
@@ -77,6 +140,7 @@ fun WeatherScreen(
                     .padding(horizontal = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+
                 Spacer(Modifier.height(24.dp))
 
                 Text(
@@ -88,14 +152,19 @@ fun WeatherScreen(
 
                 Spacer(Modifier.height(24.dp))
 
+                // Buscador de ciudades
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { query ->
                         showSearch = true
                         weatherViewModel.onSearchQueryChange(query)
                     },
-                    label = { Text("Buscar ciudad") },
-                    placeholder = { Text("Ej: Santiago, Tokio...") },
+                    label = {
+                        Text("Buscar ciudad")
+                    },
+                    placeholder = {
+                        Text("Ej: Santiago, Tokio...")
+                    },
                     singleLine = true,
                     shape = RoundedCornerShape(18.dp),
                     keyboardOptions = KeyboardOptions(
@@ -120,6 +189,7 @@ fun WeatherScreen(
                     )
                 )
 
+                // Resultados de búsqueda
                 if (showSearch && searchQuery.isNotBlank()) {
                     Spacer(Modifier.height(12.dp))
 
@@ -133,14 +203,103 @@ fun WeatherScreen(
                     )
                 }
 
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(16.dp))
 
+                // Botón para consultar el GPS
+                OutlinedButton(
+                    onClick = {
+                        keyboardController?.hide()
+                        showSearch = false
+                        weatherViewModel.clearLocationError()
+                        requestCurrentLocation()
+                    },
+                    enabled = !isLocating,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (isLocating) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+
+                        Spacer(Modifier.width(10.dp))
+
+                        Text("Obteniendo ubicación...")
+                    } else {
+                        Text("📍 Usar mi ubicación")
+                    }
+                }
+
+                // Error de GPS o permisos
+                if (locationError != null) {
+                    Spacer(Modifier.height(8.dp))
+
+                    Text(
+                        text = locationError.orEmpty(),
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // Selector Celsius / Fahrenheit
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Text(
+                        text = "°C",
+                        color = if (!useFahrenheit) {
+                            Color.White
+                        } else {
+                            Color.White.copy(alpha = 0.5f)
+                        },
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    Spacer(Modifier.width(8.dp))
+
+                    Switch(
+                        checked = useFahrenheit,
+                        onCheckedChange = { fahrenheit ->
+                            weatherViewModel.setTemperatureUnit(
+                                fahrenheit
+                            )
+                        }
+                    )
+
+                    Spacer(Modifier.width(8.dp))
+
+                    Text(
+                        text = "°F",
+                        color = if (useFahrenheit) {
+                            Color.White
+                        } else {
+                            Color.White.copy(alpha = 0.5f)
+                        },
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                Spacer(Modifier.height(24.dp))
+
+                // Estados de la consulta meteorológica
                 when (val state = uiState) {
+
                     WeatherUiState.Loading -> {
                         Spacer(Modifier.height(60.dp))
+
                         CircularProgressIndicator()
+
                         Spacer(Modifier.height(16.dp))
-                        Text("Consultando el clima...")
+
+                        Text(
+                            text = "Consultando el clima...",
+                            color = Color.White
+                        )
                     }
 
                     is WeatherUiState.Error -> {
@@ -164,28 +323,39 @@ fun WeatherScreen(
                     is WeatherUiState.Success -> {
                         val response = state.weather
 
+                        val cityLabel =
+                            if (selectedCity.country.isBlank()) {
+                                selectedCity.name
+                            } else {
+                                "${selectedCity.name}, ${selectedCity.country}"
+                            }
+
                         WeatherHero(
-                            city = "${selectedCity.name}, ${selectedCity.country}",
-                            weather = response.current
+                            city = cityLabel,
+                            weather = response.current,
+                            useFahrenheit = useFahrenheit
                         )
 
                         Spacer(Modifier.height(32.dp))
 
                         WeatherDetailsGrid(
-                            weather = response.current
+                            weather = response.current,
+                            useFahrenheit = useFahrenheit
                         )
 
                         Spacer(Modifier.height(32.dp))
 
                         HourlyForecastCard(
                             hourly = response.hourly,
-                            currentTime = response.current.time
+                            currentTime = response.current.time,
+                            useFahrenheit = useFahrenheit
                         )
 
                         Spacer(Modifier.height(32.dp))
 
                         DailyForecastCard(
-                            daily = response.daily
+                            daily = response.daily,
+                            useFahrenheit = useFahrenheit
                         )
 
                         Spacer(Modifier.height(28.dp))
@@ -205,10 +375,12 @@ fun WeatherScreen(
     }
 }
 
+// Temperatura y condición meteorológica actual
 @Composable
 private fun WeatherHero(
     city: String,
-    weather: CurrentWeather
+    weather: CurrentWeather,
+    useFahrenheit: Boolean
 ) {
     val condition = getWeatherCondition(
         weather.weatherCode,
@@ -223,7 +395,8 @@ private fun WeatherHero(
             text = city,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Medium,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            color = Color.White
         )
 
         Spacer(Modifier.height(8.dp))
@@ -234,18 +407,24 @@ private fun WeatherHero(
         )
 
         Text(
-            text = "${weather.temperature.format(0)}°",
+            text = formatTemperature(
+                celsius = weather.temperature,
+                useFahrenheit = useFahrenheit
+            ),
             style = MaterialTheme.typography.displayLarge,
-            fontWeight = FontWeight.Light
+            fontWeight = FontWeight.Light,
+            color = Color.White
         )
 
         Text(
             text = condition.description,
-            style = MaterialTheme.typography.titleLarge
+            style = MaterialTheme.typography.titleLarge,
+            color = Color.White
         )
     }
 }
 
+// Resultados del buscador de ciudades
 @Composable
 private fun CitySearchResults(
     state: CitySearchState,
@@ -259,6 +438,7 @@ private fun CitySearchResults(
         )
     ) {
         when (state) {
+
             CitySearchState.Idle -> Unit
 
             CitySearchState.Loading -> {
@@ -279,11 +459,10 @@ private fun CitySearchResults(
                 if (state.cities.isEmpty()) {
                     Text(
                         text = "No se encontraron ciudades.",
-                        modifier = Modifier.padding(16.dp)
+                        modifier = Modifier.padding(16.dp),
+                        color = Color.White
                     )
                 } else {
-                    // Usamos Column porque la lista está limitada
-                    // a 10 resultados y vive dentro de un scroll.
                     Column {
                         state.cities.forEach { city ->
                             Column(
@@ -296,7 +475,8 @@ private fun CitySearchResults(
                             ) {
                                 Text(
                                     text = city.name,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
                                 )
 
                                 Text(
@@ -321,10 +501,3 @@ private fun CitySearchResults(
         }
     }
 }
-
-private fun Double.format(decimals: Int): String =
-    String.format(
-        Locale.getDefault(),
-        "%.${decimals}f",
-        this
-    )

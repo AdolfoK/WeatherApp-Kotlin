@@ -12,13 +12,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.weatherapp.data.model.*
+import com.example.weatherapp.data.model.CurrentWeather
+import com.example.weatherapp.data.model.DailyWeather
+import com.example.weatherapp.data.model.HourlyWeather
+import com.example.weatherapp.util.formatTemperature
 import com.example.weatherapp.util.getWeatherCondition
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+// Tarjeta reutilizable para mostrar un dato del clima
 @Composable
 fun WeatherInfoCard(
     title: String,
@@ -53,14 +57,19 @@ fun WeatherInfoCard(
             Text(
                 text = value,
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = Color.White
             )
         }
     }
 }
 
+// Tarjetas de sensación térmica, humedad y viento
 @Composable
-fun WeatherDetailsGrid(weather: CurrentWeather) {
+fun WeatherDetailsGrid(
+    weather: CurrentWeather,
+    useFahrenheit: Boolean
+) {
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -69,7 +78,11 @@ fun WeatherDetailsGrid(weather: CurrentWeather) {
         ) {
             WeatherInfoCard(
                 title = "Sensación térmica",
-                value = "${weather.apparentTemperature.format(1)}°",
+                value = formatTemperature(
+                    celsius = weather.apparentTemperature,
+                    useFahrenheit = useFahrenheit,
+                    decimals = 1
+                ),
                 icon = "🌡️",
                 modifier = Modifier.weight(1f)
             )
@@ -84,23 +97,26 @@ fun WeatherDetailsGrid(weather: CurrentWeather) {
 
         WeatherInfoCard(
             title = "Velocidad del viento",
-            value = "${weather.windSpeed.format(1)} km/h",
+            value = "${String.format(Locale.getDefault(), "%.1f", weather.windSpeed)} km/h",
             icon = "💨",
             modifier = Modifier.fillMaxWidth()
         )
     }
 }
 
+// Pronóstico meteorológico de las próximas 24 horas
 @Composable
 fun HourlyForecastCard(
     hourly: HourlyWeather,
-    currentTime: String
+    currentTime: String,
+    useFahrenheit: Boolean
 ) {
     val currentHour = LocalDateTime.parse(currentTime)
         .withMinute(0)
         .withSecond(0)
         .withNano(0)
 
+    // Seleccionamos únicamente las próximas 24 horas
     val hours = hourly.time.indices.filter { index ->
         val hour = LocalDateTime.parse(hourly.time[index])
 
@@ -111,25 +127,28 @@ fun HourlyForecastCard(
     }
 
     Column(
+        modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Text(
             text = "Próximas 24 horas",
             style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = Color.White
         )
 
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(hours) { index ->
+
                 val hour = LocalDateTime.parse(
                     hourly.time[index]
                 )
 
                 val condition = getWeatherCondition(
-                    hourly.weatherCodes[index],
-                    hour.hour in 7..18
+                    code = hourly.weatherCodes[index],
+                    isDay = hour.hour in 7..18
                 )
 
                 Card(
@@ -142,17 +161,17 @@ fun HourlyForecastCard(
                 ) {
                     Column(
                         modifier = Modifier
-                            .width(82.dp)
+                            .width(100.dp)
                             .padding(vertical = 16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement =
-                            Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
                             text = hour.format(
                                 DateTimeFormatter.ofPattern("HH:mm")
                             ),
-                            style = MaterialTheme.typography.bodySmall
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.8f)
                         )
 
                         Text(
@@ -161,8 +180,12 @@ fun HourlyForecastCard(
                         )
 
                         Text(
-                            text = "${hourly.temperatures[index].format(0)}°",
-                            fontWeight = FontWeight.Bold
+                            text = formatTemperature(
+                                celsius = hourly.temperatures[index],
+                                useFahrenheit = useFahrenheit
+                            ),
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
                     }
                 }
@@ -171,8 +194,13 @@ fun HourlyForecastCard(
     }
 }
 
+// Pronóstico meteorológico de los próximos siete días
 @Composable
-fun DailyForecastCard(daily: DailyWeather) {
+fun DailyForecastCard(
+    daily: DailyWeather,
+    useFahrenheit: Boolean
+) {
+    // Evita acceder a posiciones que no existan
     val count = minOf(
         daily.time.size,
         daily.maxTemperatures.size,
@@ -181,30 +209,40 @@ fun DailyForecastCard(daily: DailyWeather) {
     )
 
     Column(
+        modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
             text = "Pronóstico de 7 días",
             style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = Color.White
         )
 
         Card(
+            modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(
                 containerColor = Color.White.copy(alpha = 0.10f)
             )
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
                 repeat(count) { index ->
-                    val date = LocalDate.parse(daily.time[index])
 
-                    val day = date.format(
+                    val date = LocalDate.parse(
+                        daily.time[index]
+                    )
+
+                    val dayName = date.format(
                         DateTimeFormatter.ofPattern(
                             "EEE",
                             Locale.forLanguageTag("es-CL")
                         )
-                    ).replaceFirstChar { it.uppercase() }
+                    ).replaceFirstChar {
+                        it.uppercase()
+                    }
 
                     val condition = getWeatherCondition(
                         daily.weatherCodes[index]
@@ -216,29 +254,45 @@ fun DailyForecastCard(daily: DailyWeather) {
                             .padding(vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // Día de la semana
                         Text(
-                            text = if (index == 0) "Hoy" else day,
+                            text = if (index == 0) {
+                                "Hoy"
+                            } else {
+                                dayName
+                            },
                             modifier = Modifier.weight(1f),
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White
                         )
 
+                        // Icono del clima
                         Text(
                             text = condition.icon,
                             style = MaterialTheme.typography.titleLarge
                         )
 
-                        Spacer(Modifier.width(20.dp))
+                        Spacer(Modifier.width(16.dp))
 
+                        // Temperatura mínima
                         Text(
-                            text = "${daily.minTemperatures[index].format(0)}°",
+                            text = formatTemperature(
+                                celsius = daily.minTemperatures[index],
+                                useFahrenheit = useFahrenheit
+                            ),
                             color = Color.White.copy(alpha = 0.65f)
                         )
 
-                        Spacer(Modifier.width(16.dp))
+                        Spacer(Modifier.width(12.dp))
 
+                        // Temperatura máxima
                         Text(
-                            text = "${daily.maxTemperatures[index].format(0)}°",
-                            fontWeight = FontWeight.Bold
+                            text = formatTemperature(
+                                celsius = daily.maxTemperatures[index],
+                                useFahrenheit = useFahrenheit
+                            ),
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
                     }
 
@@ -252,10 +306,3 @@ fun DailyForecastCard(daily: DailyWeather) {
         }
     }
 }
-
-private fun Double.format(decimals: Int): String =
-    String.format(
-        Locale.getDefault(),
-        "%.${decimals}f",
-        this
-    )
