@@ -52,9 +52,6 @@ fun WeatherScreen(
     val searchState by weatherViewModel.searchState
         .collectAsStateWithLifecycle()
 
-    val selectedCity by weatherViewModel.selectedCity
-        .collectAsStateWithLifecycle()
-
     val searchQuery by weatherViewModel.searchQuery
         .collectAsStateWithLifecycle()
 
@@ -71,7 +68,7 @@ fun WeatherScreen(
         mutableStateOf(false)
     }
 
-    // Solicita permisos de ubicación a Android.
+    // Solicitar permisos de ubicación a Android
     val locationPermissionLauncher =
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -90,7 +87,7 @@ fun WeatherScreen(
             }
         }
 
-    // Comprueba permisos antes de acceder al GPS.
+    // Comprobar si los permisos ya fueron concedidos
     fun requestCurrentLocation() {
         val fineGranted = ContextCompat.checkSelfPermission(
             context,
@@ -205,7 +202,7 @@ fun WeatherScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Botón para consultar el GPS
+                // Botón GPS
                 OutlinedButton(
                     onClick = {
                         keyboardController?.hide()
@@ -230,7 +227,7 @@ fun WeatherScreen(
                     }
                 }
 
-                // Error de GPS o permisos
+                // Mensaje de error GPS
                 if (locationError != null) {
                     Spacer(Modifier.height(8.dp))
 
@@ -286,7 +283,7 @@ fun WeatherScreen(
 
                 Spacer(Modifier.height(24.dp))
 
-                // Estados de la consulta meteorológica
+                // Estado del clima
                 when (val state = uiState) {
 
                     WeatherUiState.Loading -> {
@@ -321,13 +318,17 @@ fun WeatherScreen(
                     }
 
                     is WeatherUiState.Success -> {
+
+                        // Ciudad y pronóstico pertenecen
+                        // a la misma respuesta del ViewModel
+                        val city = state.city
                         val response = state.weather
 
                         val cityLabel =
-                            if (selectedCity.country.isBlank()) {
-                                selectedCity.name
+                            if (city.country.isBlank()) {
+                                city.name
                             } else {
-                                "${selectedCity.name}, ${selectedCity.country}"
+                                "${city.name}, ${city.country}"
                             }
 
                         WeatherHero(
@@ -375,7 +376,7 @@ fun WeatherScreen(
     }
 }
 
-// Temperatura y condición meteorológica actual
+// Tarjeta principal del clima
 @Composable
 private fun WeatherHero(
     city: String,

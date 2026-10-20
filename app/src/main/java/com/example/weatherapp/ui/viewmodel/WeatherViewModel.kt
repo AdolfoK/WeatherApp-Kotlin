@@ -21,11 +21,14 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
+import java.io.IOException
 
 sealed interface WeatherUiState {
     data object Loading : WeatherUiState
 
     data class Success(
+        val city: City,
         val weather: WeatherResponse
     ) : WeatherUiState
 
@@ -106,12 +109,14 @@ class WeatherViewModel(
                 _useFahrenheit.value = preferences.useFahrenheit
 
                 loadWeather()
+
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _uiState.value = WeatherUiState.Error(
-                    "No se pudieron recuperar las preferencias."
-                )
+                Log.e("WeatherApp", "Error al leer preferencias", e)
+
+                // Permite continuar con la ciudad predeterminada.
+                loadWeather()
             }
         }
     }
@@ -142,16 +147,16 @@ class WeatherViewModel(
                     _searchState.value = CitySearchState.Loading
 
                     try {
-                        val cities =
-                            cityRepository.searchCities(query)
+                        val cities = cityRepository.searchCities(query)
 
                         _searchState.value =
                             CitySearchState.Success(cities)
+
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
                         _searchState.value = CitySearchState.Error(
-                            "No se pudieron buscar las ciudades."
+                            getErrorMessage(e)
                         )
                     }
                 }
@@ -199,14 +204,13 @@ class WeatherViewModel(
 
     fun onLocationPermissionDenied() {
         _locationError.value =
-            "Permiso de ubicación denegado. Puedes seguir buscando ciudades."
+            "Permiso de ubicación denegado. Puedes buscar ciudades manualmente."
     }
 
     fun clearLocationError() {
         _locationError.value = null
     }
 
-    // Llamar únicamente después de comprobar los permisos.
     fun useCurrentLocation() {
         if (_isLocating.value) return
 
@@ -219,8 +223,6 @@ class WeatherViewModel(
             try {
                 val location = locationRepository.getCurrentLocation()
 
-                // No suponemos que las coordenadas corresponden
-                // a una ciudad determinada.
                 val city = City(
                     id = -1,
                     name = "Mi ubicación",
@@ -240,12 +242,12 @@ class WeatherViewModel(
                 throw e
             } catch (e: SecurityException) {
                 _locationError.value =
-                    "No hay permisos para acceder a la ubicación."
+                    "No se concedieron los permisos de ubicación."
             } catch (e: Exception) {
                 Log.e("WeatherApp", "Error de ubicación", e)
                 _locationError.value =
-                    "No se pudo obtener tu ubicación. " +
-                            "Comprueba que la ubicación del dispositivo esté activada."
+                    "No fue posible obtener la ubicación. " +
+                            "Comprueba que el GPS esté activado."
             } finally {
                 _isLocating.value = false
             }
@@ -258,24 +260,44 @@ class WeatherViewModel(
         weatherJob = viewModelScope.launch {
             _uiState.value = WeatherUiState.Loading
 
-            try {
-                val city = _selectedCity.value
+            // Capturamos la ciudad asociada a esta consulta.
+            val city = _selectedCity.value
 
+            try {
                 val result = weatherRepository.getWeather(
                     latitude = city.latitude,
                     longitude = city.longitude
                 )
 
-                _uiState.value = WeatherUiState.Success(result)
+                _uiState.value = WeatherUiState.Success(
+                    city = city,
+                    weather = result
+                )
 
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                Log.e("WeatherApp", "Error al consultar clima", e)
+
                 _uiState.value = WeatherUiState.Error(
-                    "No se pudo obtener el clima. " +
-                            "Comprueba tu conexión a internet."
+                    getErrorMessage(e)
                 )
             }
+        }
+    }
+
+    private fun getErrorMessage(exception: Exception): String {
+        return when (exception) {
+            is IOException ->
+                "No hay conexión con el servidor. " +
+                        "Comprueba tu conexión a internet."
+
+            is HttpException ->
+                "El servidor meteorológico respondió con un error " +
+                        "(${exception.code()}). Inténtalo nuevamente."
+
+            else ->
+                "Ocurrió un error inesperado. Inténtalo nuevamente."
         }
     }
 }
