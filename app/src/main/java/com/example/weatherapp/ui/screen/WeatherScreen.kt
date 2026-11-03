@@ -13,10 +13,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -38,6 +42,11 @@ import com.example.weatherapp.ui.viewmodel.WeatherUiState
 import com.example.weatherapp.ui.viewmodel.WeatherViewModel
 import com.example.weatherapp.util.formatTemperature
 import com.example.weatherapp.util.getWeatherCondition
+
+private val AccentBlue = Color(0xFFB9D9FF)
+private val BackgroundBlue = Color(0xFF09162D)
+private val CardBlue = Color(0xFF243A59)
+private val MutedText = Color(0xFFB7CAE3)
 
 @Composable
 fun WeatherScreen(
@@ -68,7 +77,6 @@ fun WeatherScreen(
         mutableStateOf(false)
     }
 
-    // Solicitar permisos de ubicación a Android
     val locationPermissionLauncher =
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -87,7 +95,6 @@ fun WeatherScreen(
             }
         }
 
-    // Comprobar si los permisos ya fueron concedidos
     fun requestCurrentLocation() {
         val fineGranted = ContextCompat.checkSelfPermission(
             context,
@@ -113,9 +120,9 @@ fun WeatherScreen(
 
     val gradient = Brush.verticalGradient(
         colors = listOf(
-            Color(0xFF234B83),
-            Color(0xFF142D53),
-            Color(0xFF09162D)
+            Color(0xFF254D81),
+            Color(0xFF142B4B),
+            BackgroundBlue
         )
     )
 
@@ -137,30 +144,57 @@ fun WeatherScreen(
                     .padding(horizontal = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                Spacer(Modifier.height(28.dp))
+
+                // Encabezado
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "TU PRONÓSTICO",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = AccentBlue,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        Spacer(Modifier.height(4.dp))
+
+                        Text(
+                            text = "WeatherApp",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+
+                    Text(
+                        text = "🌤️",
+                        style = MaterialTheme.typography.headlineLarge
+                    )
+                }
 
                 Spacer(Modifier.height(24.dp))
 
-                Text(
-                    text = "WeatherApp",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-
-                Spacer(Modifier.height(24.dp))
-
-                // Buscador de ciudades
+                // Buscador
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { query ->
                         showSearch = true
                         weatherViewModel.onSearchQueryChange(query)
                     },
-                    label = {
-                        Text("Buscar ciudad")
-                    },
+                    modifier = Modifier.fillMaxWidth(),
                     placeholder = {
-                        Text("Ej: Santiago, Tokio...")
+                        Text("Buscar ciudad...")
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            tint = AccentBlue
+                        )
                     },
                     singleLine = true,
                     shape = RoundedCornerShape(18.dp),
@@ -172,21 +206,19 @@ fun WeatherScreen(
                             keyboardController?.hide()
                         }
                     ),
-                    modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color(0xFFB9D9FF),
-                        unfocusedBorderColor =
-                            Color.White.copy(alpha = 0.4f),
-                        focusedLabelColor = Color.White,
-                        unfocusedLabelColor =
-                            Color.White.copy(alpha = 0.8f),
-                        cursorColor = Color.White
+                        focusedContainerColor = CardBlue,
+                        unfocusedContainerColor = CardBlue,
+                        focusedBorderColor = AccentBlue,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedPlaceholderColor = MutedText,
+                        unfocusedPlaceholderColor = MutedText,
+                        cursorColor = AccentBlue
                     )
                 )
 
-                // Resultados de búsqueda
                 if (showSearch && searchQuery.isNotBlank()) {
                     Spacer(Modifier.height(12.dp))
 
@@ -202,7 +234,7 @@ fun WeatherScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Botón GPS
+                // Ubicación GPS
                 OutlinedButton(
                     onClick = {
                         keyboardController?.hide()
@@ -211,116 +243,100 @@ fun WeatherScreen(
                         requestCurrentLocation()
                     },
                     enabled = !isLocating,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = AccentBlue,
+                        disabledContentColor = MutedText
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        Color(0xFF547AA5)
+                    )
                 ) {
                     if (isLocating) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp
+                            strokeWidth = 2.dp,
+                            color = AccentBlue
                         )
 
                         Spacer(Modifier.width(10.dp))
 
                         Text("Obteniendo ubicación...")
                     } else {
-                        Text("📍 Usar mi ubicación")
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null
+                        )
+
+                        Spacer(Modifier.width(8.dp))
+
+                        Text("Usar mi ubicación")
                     }
                 }
 
-                // Mensaje de error GPS
                 if (locationError != null) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(10.dp))
 
                     Text(
                         text = locationError.orEmpty(),
-                        color = MaterialTheme.colorScheme.error,
+                        color = Color(0xFFFFB4AB),
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(22.dp))
 
-                // Selector Celsius / Fahrenheit
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Text(
-                        text = "°C",
-                        color = if (!useFahrenheit) {
-                            Color.White
-                        } else {
-                            Color.White.copy(alpha = 0.5f)
-                        },
-                        fontWeight = FontWeight.Medium
-                    )
+                // Selector de unidades con colores estables
+                TemperatureUnitSelector(
+                    useFahrenheit = useFahrenheit,
+                    onUnitChange = weatherViewModel::setTemperatureUnit
+                )
 
-                    Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.height(30.dp))
 
-                    Switch(
-                        checked = useFahrenheit,
-                        onCheckedChange = { fahrenheit ->
-                            weatherViewModel.setTemperatureUnit(
-                                fahrenheit
-                            )
-                        }
-                    )
-
-                    Spacer(Modifier.width(8.dp))
-
-                    Text(
-                        text = "°F",
-                        color = if (useFahrenheit) {
-                            Color.White
-                        } else {
-                            Color.White.copy(alpha = 0.5f)
-                        },
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                Spacer(Modifier.height(24.dp))
-
-                // Estado del clima
                 when (val state = uiState) {
 
                     WeatherUiState.Loading -> {
-                        Spacer(Modifier.height(60.dp))
+                        Spacer(Modifier.height(50.dp))
 
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(
+                            color = AccentBlue
+                        )
 
                         Spacer(Modifier.height(16.dp))
 
                         Text(
                             text = "Consultando el clima...",
-                            color = Color.White
+                            color = MutedText
                         )
                     }
 
                     is WeatherUiState.Error -> {
-                        Spacer(Modifier.height(40.dp))
+                        Spacer(Modifier.height(35.dp))
 
                         Text(
                             text = state.message,
-                            color = MaterialTheme.colorScheme.error,
+                            color = Color(0xFFFFB4AB),
                             textAlign = TextAlign.Center
                         )
 
                         Spacer(Modifier.height(16.dp))
 
                         Button(
-                            onClick = weatherViewModel::loadWeather
+                            onClick = weatherViewModel::loadWeather,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AccentBlue,
+                                contentColor = BackgroundBlue
+                            )
                         ) {
                             Text("Reintentar")
                         }
                     }
 
                     is WeatherUiState.Success -> {
-
-                        // Ciudad y pronóstico pertenecen
-                        // a la misma respuesta del ViewModel
                         val city = state.city
                         val response = state.weather
 
@@ -337,14 +353,14 @@ fun WeatherScreen(
                             useFahrenheit = useFahrenheit
                         )
 
-                        Spacer(Modifier.height(32.dp))
+                        Spacer(Modifier.height(30.dp))
 
                         WeatherDetailsGrid(
                             weather = response.current,
                             useFahrenheit = useFahrenheit
                         )
 
-                        Spacer(Modifier.height(32.dp))
+                        Spacer(Modifier.height(30.dp))
 
                         HourlyForecastCard(
                             hourly = response.hourly,
@@ -352,18 +368,22 @@ fun WeatherScreen(
                             useFahrenheit = useFahrenheit
                         )
 
-                        Spacer(Modifier.height(32.dp))
+                        Spacer(Modifier.height(30.dp))
 
                         DailyForecastCard(
                             daily = response.daily,
                             useFahrenheit = useFahrenheit
                         )
 
-                        Spacer(Modifier.height(28.dp))
+                        Spacer(Modifier.height(24.dp))
 
                         OutlinedButton(
                             onClick = weatherViewModel::loadWeather,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = AccentBlue
+                            )
                         ) {
                             Text("Actualizar clima")
                         }
@@ -376,7 +396,88 @@ fun WeatherScreen(
     }
 }
 
-// Tarjeta principal del clima
+// Selector personalizado: Celsius / Fahrenheit
+@Composable
+private fun TemperatureUnitSelector(
+    useFahrenheit: Boolean,
+    onUnitChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = "Unidad de temperatura",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White
+            )
+
+            Text(
+                text = "Selecciona tu preferencia",
+                style = MaterialTheme.typography.bodySmall,
+                color = MutedText
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(CardBlue)
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            TemperatureUnitButton(
+                text = "°C",
+                selected = !useFahrenheit,
+                onClick = { onUnitChange(false) }
+            )
+
+            TemperatureUnitButton(
+                text = "°F",
+                selected = useFahrenheit,
+                onClick = { onUnitChange(true) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun TemperatureUnitButton(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(
+                if (selected) AccentBlue else Color.Transparent
+            )
+            .clickable(
+                enabled = !selected,
+                onClick = onClick
+            )
+            .padding(horizontal = 15.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            fontWeight = FontWeight.Bold,
+            color = if (selected) {
+                BackgroundBlue
+            } else {
+                MutedText
+            }
+        )
+    }
+}
+
+// Clima principal
 @Composable
 private fun WeatherHero(
     city: String,
@@ -392,15 +493,28 @@ private fun WeatherHero(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(
-            text = city,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Medium,
-            textAlign = TextAlign.Center,
-            color = Color.White
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.LocationOn,
+                contentDescription = null,
+                tint = AccentBlue,
+                modifier = Modifier.size(20.dp)
+            )
 
-        Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.width(5.dp))
+
+            Text(
+                text = city,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                color = Color.White
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
 
         Text(
             text = condition.icon,
@@ -419,13 +533,13 @@ private fun WeatherHero(
 
         Text(
             text = condition.description,
-            style = MaterialTheme.typography.titleLarge,
-            color = Color.White
+            style = MaterialTheme.typography.titleMedium,
+            color = MutedText
         )
     }
 }
 
-// Resultados del buscador de ciudades
+// Resultados de búsqueda
 @Composable
 private fun CitySearchResults(
     state: CitySearchState,
@@ -435,7 +549,7 @@ private fun CitySearchResults(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF243E63)
+            containerColor = CardBlue
         )
     ) {
         when (state) {
@@ -444,7 +558,8 @@ private fun CitySearchResults(
 
             CitySearchState.Loading -> {
                 LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    color = AccentBlue
                 )
             }
 
@@ -452,7 +567,7 @@ private fun CitySearchResults(
                 Text(
                     text = state.message,
                     modifier = Modifier.padding(16.dp),
-                    color = MaterialTheme.colorScheme.error
+                    color = Color(0xFFFFB4AB)
                 )
             }
 
@@ -486,14 +601,12 @@ private fun CitySearchResults(
                                         city.country
                                     ).joinToString(", "),
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = Color.White.copy(
-                                        alpha = 0.7f
-                                    )
+                                    color = MutedText
                                 )
                             }
 
                             HorizontalDivider(
-                                color = Color.White.copy(alpha = 0.1f)
+                                color = Color.White.copy(alpha = 0.10f)
                             )
                         }
                     }
